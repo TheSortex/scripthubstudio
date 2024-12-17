@@ -1,22 +1,29 @@
-import { contextBridge } from 'electron'
-import { electronAPI } from '@electron-toolkit/preload'
+import { contextBridge, ipcRenderer } from 'electron';
+import { electronAPI } from '@electron-toolkit/preload';
+import { StoreData } from '@type/store';
 
-// Custom APIs for renderer
-const api = {}
+console.log('Preload-Skript wird geladen...');
 
-// Use `contextBridge` APIs to expose Electron APIs to
-// renderer only if context isolation is enabled, otherwise
-// just add to the DOM global.
-if (process.contextIsolated) {
-  try {
-    contextBridge.exposeInMainWorld('electron', electronAPI)
-    contextBridge.exposeInMainWorld('api', api)
-  } catch (error) {
-    console.error(error)
-  }
-} else {
-  // @ts-ignore (define in dts)
-  window.electron = electronAPI
-  // @ts-ignore (define in dts)
-  window.api = api
-}
+contextBridge.exposeInMainWorld('electronAPI', {
+    sendData: (data) => ipcRenderer.send('send-data', data),
+    onDataReceived: (callback) => ipcRenderer.on('data-received', callback),
+  });
+
+// Expose Electron APIs to the renderer process
+// contextBridge.exposeInMainWorld('electron', electronAPI);
+
+// // Store APIs for renderer
+// contextBridge.exposeInMainWorld('store', {
+//   get: async <K extends keyof StoreData>(key: K, defaultValue?: StoreData[K]) => {
+//     return await ipcRenderer.invoke('simple-store-get', key, defaultValue);
+//   },
+//   set: <K extends keyof StoreData>(key: K, value: StoreData[K]) => {
+//     ipcRenderer.invoke('simple-store-set', key, value);
+//   },
+//   delete: <K extends keyof StoreData>(key: K) => {
+//     ipcRenderer.invoke('simple-store-delete', key);
+//   },
+//   openInEditor: () => {
+//     return ipcRenderer.invoke('simple-store-open');
+//   },
+// });

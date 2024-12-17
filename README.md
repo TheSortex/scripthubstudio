@@ -1,6 +1,5 @@
 # scripthubstudio
-
-A minimal Electron application with TypeScript
+A versatile application combining a rich-text editor for authors, a code editor, and a markdown documentation tool to streamline creative and technical workflows.
 
 ## Recommended IDE Setup
 

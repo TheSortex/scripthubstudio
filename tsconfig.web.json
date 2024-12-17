@@ -1,7 +1,23 @@
 {
   "extends": "@electron-toolkit/tsconfig/tsconfig.web.json",
-  "include": ["src/renderer/**/*.ts", "src/preload/*.d.ts"],
+  "include": [
+    "electron.vite.config.*",
+    "src/main/**/*",
+    "src/preload/**/*",
+    "src/render/**/*",
+    "src/shared/**/*",
+    "types"],
   "compilerOptions": {
-    "composite": true
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "baseUrl": ".",
+    "paths": {
+      "@type/*": ["types/*"],
+      "@resources/*": ["src/resources/*"],
+      "@shared/*": ["src/shared/*"]
+    },
+    "composite": true,
+    "typeRoots": ["./node_modules/@types", "./types"],
+    "types": []
   }
 }

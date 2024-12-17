@@ -1,7 +1,8 @@
 {
   "name": "scripthubstudio",
   "version": "1.0.0",
-  "description": "A minimal Electron application with TypeScript",
+  "private": true,
+  "description": "A versatile application combining a rich-text editor for authors, a code editor, and a markdown documentation tool to streamline creative and technical workflows.",
   "main": "./out/main/index.js",
   "author": "example.com",
   "homepage": "https://electron-vite.org",
@@ -35,6 +36,7 @@
     "electron-vite": "^2.3.0",
     "eslint": "^8.57.0",
     "prettier": "^3.3.2",
+    "type-fest": "^4.30.2",
     "typescript": "^5.5.2",
     "vite": "^5.3.1"
   }

@@ -1,74 +1,98 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import icon from '../../resources/icon.png?asset'
+import icon from '@resources/icon.png'
+import SimpleStore from '@shared/simple-store';
+import { StoreData } from '@type/store';
+
+let mainWindow: BrowserWindow | null = null;
+
+// Initialisierung des Stores
+const store = new SimpleStore<StoreData>({
+  defaults: {
+    windowSize: { width: 800, height: 600 },
+    userPreferences: { theme: 'light' }
+  }
+});
 
 function createWindow(): void {
-  // Create the browser window.
-  const mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
+  // Fenstergröße aus dem Store holen
+  const { width, height } = store.get('windowSize');
+
+  mainWindow = new BrowserWindow({
+    width,
+    height,
     show: false,
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      preload: join(__dirname, '../preload/index.js'), // Preload-Skript einbinden
+      contextIsolation: true, // contextIsolation aktivieren
+      nodeIntegration: true, // Sicherheitsbest practice
     }
-  })
+  });
 
   mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
-  })
+    if (mainWindow) {
+      mainWindow.show();
+    }
+  });
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
-    return { action: 'deny' }
-  })
+    shell.openExternal(details.url);
+    return { action: 'deny' };
+  });
 
-  // HMR for renderer base on electron-vite cli.
-  // Load the remote URL for development or the local html file for production.
+  // HMR für Renderer basierend auf electron-vite CLI
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL']);
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
   }
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
+// App-Ready-Handler
 app.whenReady().then(() => {
-  // Set app user model id for windows
-  electronApp.setAppUserModelId('com.electron')
+  // App User Model ID für Windows setzen
+  electronApp.setAppUserModelId('com.electron');
 
-  // Default open or close DevTools by F12 in development
-  // and ignore CommandOrControl + R in production.
-  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
+  // DevTools-Shortcuts und andere Einstellungen
   app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window)
-  })
+    optimizer.watchWindowShortcuts(window);
+  });
 
-  // IPC test
-  ipcMain.on('ping', () => console.log('pong'))
+  // IPC-Test
+  ipcMain.on('ping', () => console.log('pong'));
 
-  createWindow()
+  createWindow();
 
   app.on('activate', function () {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
-  })
-})
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
+  // Fenster schließen und Größe speichern
+  if (mainWindow) {
+    mainWindow.on('close', () => {
+      if (mainWindow) {
+        const { width, height } = mainWindow.getBounds();
+        store.set('windowSize', { width, height });
+      }
+    });
+  }
+});
+
+// Fenster-all-closed-Handler
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    app.quit()
+    app.quit();
   }
-})
+});
 
-// In this file you can include the rest of your app"s specific main process
-// code. You can also put them in separate files and require them here.
+// IPC-Handler für User Preferences
+ipcMain.handle('get-user-preferences', () => {
+  return store.get('userPreferences');
+});
+
+ipcMain.handle('set-user-preferences', (event, newPreferences: { theme: string }) => {
+  store.set('userPreferences', newPreferences);
+});
