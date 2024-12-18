@@ -7,7 +7,6 @@ import { StoreData } from '@type/store';
 
 let mainWindow: BrowserWindow | null = null;
 
-// Initialisierung des Stores
 const store = new SimpleStore<StoreData>({
   defaults: {
     windowSize: { width: 800, height: 600 },
@@ -16,7 +15,6 @@ const store = new SimpleStore<StoreData>({
 });
 
 function createWindow(): void {
-  // Fenstergröße aus dem Store holen
   const { width, height } = store.get('windowSize');
 
   mainWindow = new BrowserWindow({
@@ -26,9 +24,9 @@ function createWindow(): void {
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
-      preload: join(__dirname, '../preload/index.js'), // Preload-Skript einbinden
-      contextIsolation: true, // contextIsolation aktivieren
-      nodeIntegration: true, // Sicherheitsbest practice
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
     }
   });
 
@@ -93,6 +91,6 @@ ipcMain.handle('get-user-preferences', () => {
   return store.get('userPreferences');
 });
 
-ipcMain.handle('set-user-preferences', (event, newPreferences: { theme: string }) => {
+ipcMain.handle('set-user-preferences', (_event, newPreferences: { theme: string }) => {
   store.set('userPreferences', newPreferences);
 });

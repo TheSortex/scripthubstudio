@@ -6,7 +6,7 @@
     "src/preload/**/*",
     "src/render/**/*",
     "src/shared/**/*",
-    "types"],
+    "types/**/*"],
   "compilerOptions": {
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
@@ -17,7 +17,6 @@
       "@shared/*": ["src/shared/*"]
     },
     "composite": true,
-    "typeRoots": ["./node_modules/@types", "./types"],
-    "types": []
+    "typeRoots": ["./node_modules/@types", "./types"]
   }
 }

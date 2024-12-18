@@ -1,4 +1,15 @@
 // renderer.ts
+const globalCheck: TestGlobalCheck = { test: 'It works!' };
+console.log(globalCheck);
+
+(async () => {
+  const preferences = await window.electronAPI.getUserPreferences();
+  console.log('Current Preferences:', preferences);
+
+  await window.electronAPI.setUserPreferences({ theme: 'dark' });
+  console.log('Preferences updated to dark mode!');
+})();
+
 // Initialisierung
 function init(): void {
   window.addEventListener('DOMContentLoaded', () => {
