@@ -4,22 +4,50 @@ import path from 'node:path';
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
+    resolve: {
+      alias: {
+        '@resources': path.resolve(__dirname, 'src/resources'),
+        '@shared': path.resolve(__dirname, 'src/shared'),
+        '@type': path.resolve(__dirname, 'types'),
+      },
+    },
+    assetsInclude: ['**/*.png'],
+    build: {
+      rollupOptions: {
+        external: [],
+      },
+    },
   },
   preload: {
     plugins: [externalizeDepsPlugin()],
-  },
-  renderer: {
     resolve: {
       alias: {
-        '@resources': path.resolve(__dirname, 'src/resources'), // Alias hinzufügen
+        '@resources': path.resolve(__dirname, 'src/resources'),
+        '@shared': path.resolve(__dirname, 'src/shared'),
+        '@type': path.resolve(__dirname, 'types'),
       },
     },
-    assetsInclude: ['**/*.png'], // PNG-Dateien explizit einschließen
-      build: {
-        rollupOptions: {
-          external: [], // Stelle sicher, dass keine Abhängigkeiten externalisiert werden
-        },
+    assetsInclude: ['**/*.png'],
+    build: {
+      rollupOptions: {
+        external: [],
       },
     },
   },
-);
+  renderer: {
+    plugins: [externalizeDepsPlugin()],
+    resolve: {
+      alias: {
+        '@resources': path.resolve(__dirname, 'src/resources'),
+        '@shared': path.resolve(__dirname, 'src/shared'),
+        '@type': path.resolve(__dirname, 'types'),
+      },
+    },
+    assetsInclude: ['**/*.png'],
+    build: {
+      rollupOptions: {
+        external: [],
+      },
+    },
+  },
+});

@@ -17,6 +17,6 @@
       "@shared/*": ["src/shared/*"]
     },
     "composite": true,
-    "typeRoots": ["./node_modules/@types", "./types"]
+    "typeRoots": ["./types", "./node_modules/@types"]
   }
 }

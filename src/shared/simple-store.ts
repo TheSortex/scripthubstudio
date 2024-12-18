@@ -1,4 +1,3 @@
-// src/shared/SimpleStore.ts
 import { app, ipcMain, shell, IpcMainInvokeEvent } from 'electron';
 import { existsSync, readFileSync, writeFileSync, renameSync } from 'fs';
 import { join } from 'path';
@@ -58,7 +57,8 @@ class SimpleStore<T extends ConfigData> {
             if (!existsSync(this.filePath)) {
                 if (defaults) {
                     data = { ...defaults } as T;
-                    this._save();
+                    this.data = data;
+                    this._save(); // Neues Standardobjekt speichern
                 } else {
                     writeFileSync(this.filePath, '{}', 'utf-8');
                 }
@@ -66,23 +66,35 @@ class SimpleStore<T extends ConfigData> {
             }
 
             const raw = readFileSync(this.filePath, 'utf-8');
-            data = JSON.parse(raw) as T;
+            if (raw.trim() === '') {
+                // Fallback auf leeres JSON, falls Datei leer ist
+                data = defaults ? { ...defaults } as T : {} as T;
+                this.data = data;
+                this._save(); // Speichere die leeren Standardwerte
+            } else {
+                data = JSON.parse(raw) as T;
+            }
 
             // Merge defaults
             if (defaults) {
                 data = { ...defaults, ...data };
-                this._save();
             }
         } catch (error) {
             console.error('Failed to load config:', error);
+            data = defaults ? { ...defaults } as T : {} as T;
         }
 
+        this.data = data; // Sicherstellen, dass `this.data` immer initialisiert ist
         return data;
     }
 
     private _save(): void {
         try {
+            if (!this.data || typeof this.data !== 'object') {
+                throw new Error('No data to save.');
+            }
             const tempPath = `${this.filePath}.tmp`;
+            console.log('Saving data:', this.data); // Debugging
             writeFileSync(tempPath, JSON.stringify(this.data, null, 2), 'utf-8');
             renameSync(tempPath, this.filePath);
         } catch (error) {

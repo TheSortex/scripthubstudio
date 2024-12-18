@@ -30,6 +30,10 @@ function createWindow(): void {
     }
   });
 
+  if (import.meta.env.MODE === 'development') {
+    mainWindow.webContents.openDevTools();
+  }
+
   mainWindow.on('ready-to-show', () => {
     if (mainWindow) {
       mainWindow.show();
@@ -83,6 +87,13 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
+  }
+});
+
+// Öffne Entwickler-Tools auf Anfrage
+ipcMain.on('open-dev-tools', () => {
+  if (mainWindow) {
+    mainWindow.webContents.openDevTools();
   }
 });
 

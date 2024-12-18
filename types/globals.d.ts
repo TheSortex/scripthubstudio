@@ -6,7 +6,20 @@ declare global {
   }
   
   interface Window {
-    electronAPI: {
+    electron?: {
+      process?: {
+        versions: {
+          electron: string;
+          chrome: string;
+          node: string;
+        };
+      };
+      ipcRenderer: {
+        send(channel: string, ...args: any[]): void;
+      };
+    };
+    
+    electronAPI?: {
       getUserPreferences: () => Promise<{ theme: string }>;
       setUserPreferences: (preferences: { theme: string }) => Promise<void>;
     };

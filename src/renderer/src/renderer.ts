@@ -1,13 +1,33 @@
-// renderer.ts
+// /src/renderer/src/renderer.ts
+
+/// <reference path="../../../types/globals.d.ts" />
+
+// @ts-ignore
+if (import.meta.env.MODE === 'development') {
+  console.log('Development mode active');
+}
+
+// @ts-ignore
+if (import.meta.env.MODE === 'development') {
+  const { ipcRenderer } = window.electron || {};
+  if (ipcRenderer) {
+    ipcRenderer.send('open-dev-tools');
+  }
+}
+
 const globalCheck: TestGlobalCheck = { test: 'It works!' };
 console.log(globalCheck);
 
 (async () => {
-  const preferences = await window.electronAPI.getUserPreferences();
-  console.log('Current Preferences:', preferences);
+  if (window.electronAPI) {
+    const preferences = await window.electronAPI.getUserPreferences();
+    console.log('Current Preferences:', preferences);
 
-  await window.electronAPI.setUserPreferences({ theme: 'dark' });
-  console.log('Preferences updated to dark mode!');
+    await window.electronAPI.setUserPreferences({ theme: 'dark' });
+    console.log('Preferences updated to dark mode!');
+  } else {
+    console.error('electronAPI is not available.');
+  }
 })();
 
 // Initialisierung
@@ -55,18 +75,3 @@ function replaceText(selector: string, text: string): void {
 
 // Starte das Skript
 init();
-
-// Beispiel: Daten setzen und abrufen
-window.store.set('userPreferences.theme', 'dark');
-
-window.store.get('userPreferences.theme').then(theme => {
-    console.log(theme); // Ausgabe: dark
-});
-
-// Daten löschen
-window.store.delete('userPreferences.theme');
-
-// Datei im Editor öffnen
-window.store.openInEditor().catch(error => {
-    console.error(error);
-});
