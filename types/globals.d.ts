@@ -6,6 +6,17 @@ declare global {
   }
   
   interface Window {
+    versions: {
+      node: () => string;
+      chrome: () => string;
+      electron: () => string;
+    };
+
+    eventBus?: {
+      emit: (eventName: string, data: any) => void;
+      on: (eventName: string, callback: (data: any) => void) => void;
+    };
+
     electron?: {
       process?: {
         versions: {
@@ -18,9 +29,9 @@ declare global {
         send(channel: string, ...args: any[]): void;
       };
     };
-    
-    electronAPI?: {
-      getUserPreferences: () => Promise<{ theme: string }>;
+
+    electronAPI: {
+      getUserPreferences: () => Promise<any>;
       setUserPreferences: (preferences: { theme: string }) => Promise<void>;
     };
     

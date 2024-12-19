@@ -2,68 +2,39 @@
 
 /// <reference path="../../../types/globals.d.ts" />
 
-// @ts-ignore
-if (import.meta.env.MODE === 'development') {
+// Entwicklungsmodus prüfen
+if (process.env.NODE_ENV === 'development') {
   console.log('Development mode active');
 }
 
-// @ts-ignore
-if (import.meta.env.MODE === 'development') {
-  const { ipcRenderer } = window.electron || {};
-  if (ipcRenderer) {
-    ipcRenderer.send('open-dev-tools');
-  }
+// DevTools öffnen, falls im Entwicklungsmodus
+if (process.env.NODE_ENV === 'development') {
+  window.electronAPI?.setUserPreferences({ theme: 'dev' }); // Beispiel: Dev-Einstellung
 }
-
-const globalCheck: TestGlobalCheck = { test: 'It works!' };
-console.log(globalCheck);
-
-(async () => {
-  if (window.electronAPI) {
-    const preferences = await window.electronAPI.getUserPreferences();
-    console.log('Current Preferences:', preferences);
-
-    await window.electronAPI.setUserPreferences({ theme: 'dark' });
-    console.log('Preferences updated to dark mode!');
-  } else {
-    console.error('electronAPI is not available.');
-  }
-})();
 
 // Initialisierung
 function init(): void {
   window.addEventListener('DOMContentLoaded', () => {
     displayElectronVersions();
     setupIpcHandler();
+    setupEventBusHandlers();
   });
 }
 
-// Zeige die Electron-, Chrome- und Node.js-Versionen im DOM an
+// Electron-, Chrome- und Node.js-Versionen im DOM anzeigen
 function displayElectronVersions(): void {
-  const versions = window.electron?.process?.versions;
+  const versions = {
+    electron: window.versions.electron(),
+    chrome: window.versions.chrome(),
+    node: window.versions.node(),
+  };
 
-  if (versions) {
-    replaceText('.electron-version', `Electron v${versions.electron}`);
-    replaceText('.chrome-version', `Chromium v${versions.chrome}`);
-    replaceText('.node-version', `Node v${versions.node}`);
-  } else {
-    console.error('Electron versions not available.');
-  }
+  Object.entries(versions).forEach(([key, value]) => {
+    replaceText(`.${key}-version`, `${key.charAt(0).toUpperCase() + key.slice(1)} v${value}`);
+  });
 }
 
-// Setup für den IPC-Handler
-function setupIpcHandler(): void {
-  const ipcHandlerBtn = document.getElementById('ipcHandler');
-  if (ipcHandlerBtn) {
-    ipcHandlerBtn.addEventListener('click', () => {
-      window.electron?.ipcRenderer.send('ping');
-    });
-  } else {
-    console.error('Button with id "ipcHandler" not found.');
-  }
-}
-
-// Hilfsfunktion zum Ersetzen von Text im DOM
+// Hilfsfunktion zum Textersetzen im DOM
 function replaceText(selector: string, text: string): void {
   const element = document.querySelector<HTMLElement>(selector);
   if (element) {
@@ -73,5 +44,40 @@ function replaceText(selector: string, text: string): void {
   }
 }
 
-// Starte das Skript
+// IPC-Handler einrichten
+function setupIpcHandler(): void {
+  const ipcHandlerBtn = document.getElementById('ipcHandler');
+  ipcHandlerBtn?.addEventListener('click', () => {
+    window.eventBus?.emit('button-clicked', 'Ping from Renderer!');
+  });
+}
+
+// EventBus-Handler einrichten
+function setupEventBusHandlers(): void {
+  // Event senden
+  const eventBusBtn = document.getElementById('eventBusBtn');
+  eventBusBtn?.addEventListener('click', () => {
+    window.eventBus?.emit('button-clicked', 'Hallo aus dem Frontend!');
+  });
+
+  // Auf Backend-Events reagieren
+  window.eventBus?.on('backend-event', (message) => {
+    console.log('Backend-Event empfangen:', message);
+  });
+}
+
+// Async-Funktionen für API-Interaktion
+(async () => {
+  try {
+    const preferences = await window.electronAPI?.getUserPreferences();
+    console.log('Current Preferences:', preferences);
+
+    await window.electronAPI?.setUserPreferences({ theme: 'dark' });
+    console.log('Preferences updated to dark mode!');
+  } catch (error) {
+    console.error('Error interacting with electronAPI:', error);
+  }
+})();
+
+// Skript starten
 init();

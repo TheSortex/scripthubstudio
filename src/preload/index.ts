@@ -1,24 +1,49 @@
-import { StoreData } from '@type/store';
 import { contextBridge, ipcRenderer } from 'electron';
 
-contextBridge.exposeInMainWorld('electronAPI', {
-  getUserPreferences: () => ipcRenderer.invoke('get-user-preferences'),
-  setUserPreferences: (preferences: { theme: string }) =>
-    ipcRenderer.invoke('set-user-preferences', preferences),
+// Typen für Events definieren
+type Events = {
+  'button-clicked': string;
+  'backend-event': string;
+};
+
+// Event-Bus-Schnittstelle
+contextBridge.exposeInMainWorld('eventBus', {
+  emit: (eventName: keyof Events, data: any) => {
+    ipcRenderer.send('event', { eventName, data }); // Renderer → Main
+  },
+  on: (eventName: keyof Events, callback: (data: any) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, { eventName: incomingEvent, data }: { eventName: keyof Events; data: any }) => {
+      if (eventName === incomingEvent) {
+        callback(data); // Main → Renderer
+      }
+    };
+    ipcRenderer.on('event', listener);
+    return () => ipcRenderer.removeListener('event', listener); // Cleanup-Funktion zurückgeben
+  },
 });
 
-// Store APIs for renderer
+// Electron API-Schnittstelle
+contextBridge.exposeInMainWorld('electronAPI', {
+  getUserPreferences: async () => await ipcRenderer.invoke('get-user-preferences'),
+  setUserPreferences: async (preferences: { theme: string }) => await ipcRenderer.invoke('set-user-preferences', preferences),
+});
+
+// Store API-Schnittstelle
 contextBridge.exposeInMainWorld('store', {
-  get: async <K extends keyof StoreData>(key: K, defaultValue?: StoreData[K]) => {
+  get: async <K extends string>(key: K, defaultValue?: any) => {
     return await ipcRenderer.invoke('simple-store-get', key, defaultValue);
   },
-  set: <K extends keyof StoreData>(key: K, value: StoreData[K]) => {
-    ipcRenderer.invoke('simple-store-set', key, value);
+  set: async <K extends string>(key: K, value: any) => {
+    await ipcRenderer.invoke('simple-store-set', key, value);
   },
-  delete: <K extends keyof StoreData>(key: K) => {
-    ipcRenderer.invoke('simple-store-delete', key);
+  delete: async <K extends string>(key: K) => {
+    await ipcRenderer.invoke('simple-store-delete', key);
   },
-  openInEditor: () => {
-    return ipcRenderer.invoke('simple-store-open');
-  },
+  openInEditor: async () => await ipcRenderer.invoke('simple-store-open'),
+});
+
+contextBridge.exposeInMainWorld('versions', {
+  node: () => process.versions.node,
+  chrome: () => process.versions.chrome,
+  electron: () => process.versions.electron,
 });
