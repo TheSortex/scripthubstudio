@@ -6,14 +6,35 @@ import SimpleStore from '@shared/simple-store';
 import { StoreData } from '@type/store';
 import mitt from 'mitt';
 
-// Typen für Events
-type Events = {
+// Typen für Events definieren
+type StoreEvent = {
+  'store:get': { 
+    key: keyof StoreData; // Schlüssel im Store
+    responseChannel?: string; // Kanal für die Antwort
+  };
+  'store:set': { 
+    key: keyof StoreData; // Schlüssel im Store
+    value: StoreData[keyof StoreData]; // Optionaler Wert (für set)
+    responseChannel?: string; // Kanal für die Antwort
+  };
+  'store:delete': { 
+    key: keyof StoreData; // Schlüssel im Store
+    responseChannel?: string; // Kanal für die Antwort
+  };
+  'store:open': {
+    responseChannel?: string // Nur Antwortkanal, da kein Key benötigt wird
+  };
+};
+
+type EventBusEvent = StoreEvent & {
   'button-clicked': string;
   'backend-event': string;
+  'get-versions': { responseChannel: string }; // Anfrage für Versionsinformationen
+  [responseChannel: string]: any; // Dynamische Antwortkanäle
 };
 
 // Event-Bus initialisieren
-const eventBus = mitt<Events>();
+const eventBus = mitt<EventBusEvent>();
 
 // Hauptfenster
 let mainWindow: BrowserWindow | null = null;
@@ -78,28 +99,61 @@ const createWindow = (): void => {
 
 // IPC-Handler
 const setupIpcHandlers = (): void => {
-  ipcMain.on('ping', () => console.log('pong'));
+  ipcMain.on('event', (_event, { eventName, data }) => {
+    console.log(`Event received: ${eventName}`, data); // Debugging
 
-  ipcMain.on('event', (event, { eventName, data }) => {
-    console.log(`Event vom Renderer empfangen: ${eventName} - Daten:`, data);
-    eventBus.emit(eventName as keyof Events, data);
-  });
+    if (eventName === 'get-versions') {
+      const { responseChannel } = data as EventBusEvent['get-versions'];
+      const versions = {
+        node: process.versions.node,
+        chrome: process.versions.chrome,
+        electron: process.versions.electron,
+      };
 
-  ipcMain.handle('get-user-preferences', () => store.get('userPreferences'));
+      console.log('Sending versions:', versions);
+      eventBus.emit(responseChannel as keyof EventBusEvent, versions);
+    }
 
-  ipcMain.handle('set-user-preferences', (_event, newPreferences: { theme: string }) => {
-    store.set('userPreferences', newPreferences);
+    if (eventName === 'store:get') {
+      const { key, responseChannel } = data as StoreEvent['store:get'];
+      const value = store.get(key);
+    
+      console.log(`Store GET for key "${key}":`, value); // Debugging
+      if (value) {
+        eventBus.emit(responseChannel as keyof EventBusEvent, value); // JSON-kompatible Antwort senden
+      } else {
+        console.error(`No value found for key "${key}"`);
+      }
+    }
+
+    if (eventName === 'store:set') {
+      const { key, value } = data as StoreEvent['store:set'];
+      console.log(`Store SET for key "${key}":`, value);
+      store.set(key, value);
+    }
+
+    if (eventName === 'store:delete') {
+      const { key } = data as StoreEvent['store:delete'];
+      console.log(`Store DELETE for key "${key}"`);
+      store.delete(key);
+    }
+
+    if (eventName === 'store:open') {
+      console.log('Opening store in editor');
+      store.openInEditor();
+    }
+
+    if (eventName === 'button-clicked') {
+      const eventData = data as EventBusEvent['button-clicked'];
+      console.log('Button clicked event received:', eventData);
+
+      mainWindow?.webContents.send('event', {
+        eventName: 'backend-event',
+        data: `Hallo vom Main-Prozess! Empfangen: ${eventData}`,
+      });
+    }
   });
 };
-
-// Events an den Renderer zurücksenden
-eventBus.on('button-clicked', (data) => {
-  console.log('Button clicked in Renderer:', data);
-  mainWindow?.webContents.send('event', {
-    eventName: 'backend-event',
-    data: `Hallo vom Main-Prozess! Empfangen: ${data}`,
-  });
-});
 
 // App-Setup
 app.whenReady().then(() => {

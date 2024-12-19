@@ -1,165 +1,116 @@
-import { app, ipcMain, shell, IpcMainInvokeEvent } from 'electron';
+import { app, shell } from 'electron';
 import { existsSync, readFileSync, writeFileSync, renameSync } from 'fs';
 import { join } from 'path';
 
 type ConfigData = Record<string, any>;
 
 interface SimpleStoreOptions<T> {
-    name?: string;
-    cwd?: string;
-    defaults?: Partial<T>;
+  name?: string;
+  cwd?: string;
+  defaults?: Partial<T>;
 }
 
 class SimpleStore<T extends ConfigData> {
-    private name: string;
-    private cwd: string;
-    private filePath: string;
-    private data: T;
+  private name: string;
+  private cwd: string;
+  private filePath: string;
+  private data: T;
+  private defaults: Partial<T>;
 
-    constructor(options: SimpleStoreOptions<T> = {}) {
-        this.name = options.name || 'config';
-        this.cwd = options.cwd || app.getPath('userData');
-        this.filePath = join(this.cwd, `${this.name}.json`);
-        this.data = this._load(options.defaults);
+  constructor(options: SimpleStoreOptions<T> = {}) {
+    this.name = options.name || 'config';
+    this.cwd = options.cwd || app.getPath('userData');
+    this.filePath = join(this.cwd, `${this.name}.json`);
+    this.defaults = options.defaults || {};
+    this.data = this._load();
+  }
 
-        // Initialisiere IPC-Handler nur im Main-Prozess
-        if (process.type === 'browser') {
-            this._initIpc();
-        }
+  private _load(): T {
+    let data: T = {} as T;
+
+    try {
+      if (existsSync(this.filePath)) {
+        const raw = readFileSync(this.filePath, 'utf-8');
+        data = raw.trim() ? JSON.parse(raw) as T : {} as T;
+      }
+
+      // Defaults mit geladenen Daten mergen
+      data = { ...this.defaults, ...data };
+    } catch (error) {
+      console.error('Failed to load config:', error);
+      data = { ...this.defaults } as T; // Fallback auf Defaults
     }
 
-    private _initIpc(): void {
-        ipcMain.handle('simple-store-get', (_event: IpcMainInvokeEvent, key: keyof T, defaultValue?: any) => {
-            return this.get(key as string, defaultValue);
-        });
+    this.data = data; // Sicherstellen, dass `this.data` initialisiert ist
+    this._save(); // Speichere gemischte Werte zurück
+    return data;
+  }
 
-        ipcMain.handle('simple-store-set', (_event: IpcMainInvokeEvent, key: keyof T, value: any) => {
-            this.set(key as string, value);
-        });
+  private _save(): void {
+    try {
+      const tempPath = `${this.filePath}.tmp`;
+      writeFileSync(tempPath, JSON.stringify(this.data, null, 2), 'utf-8');
+      renameSync(tempPath, this.filePath);
+    } catch (error) {
+      console.error('Failed to save config:', error);
+    }
+  }
 
-        ipcMain.handle('simple-store-delete', (_event: IpcMainInvokeEvent, key: keyof T) => {
-            this.delete(key as string);
-        });
+  public get<K extends keyof T>(key: K): T[K] {
+    const keys = key.toString().split('.') as (keyof any)[];
+    let value: any = this.data;
 
-        ipcMain.handle('simple-store-open', async () => {
-            try {
-                await shell.openPath(this.filePath);
-            } catch (error) {
-                throw new Error(`Failed to open file: ${(error as Error).message}`);
-            }
-        });
+    for (const part of keys) {
+      if (value && typeof value === 'object' && part in value) {
+        value = value[part];
+      } else {
+        value = undefined;
+        break;
+      }
     }
 
-    private _load(defaults?: Partial<T>): T {
-        let data: T = {} as T;
+    // Fallback auf Default-Wert
+    const defaultValue = keys.reduce((acc, part) => acc?.[part], this.defaults as any);
+    return value !== undefined ? value : defaultValue;
+  }
 
-        try {
-            if (!existsSync(this.filePath)) {
-                if (defaults) {
-                    data = { ...defaults } as T;
-                    this.data = data;
-                    this._save(); // Neues Standardobjekt speichern
-                } else {
-                    writeFileSync(this.filePath, '{}', 'utf-8');
-                }
-                return data;
-            }
+  public set<K extends keyof T>(key: K, value: T[K]): void {
+    const keys = key.toString().split('.') as (keyof any)[];
+    let obj: any = this.data;
 
-            const raw = readFileSync(this.filePath, 'utf-8');
-            if (raw.trim() === '') {
-                // Fallback auf leeres JSON, falls Datei leer ist
-                data = defaults ? { ...defaults } as T : {} as T;
-                this.data = data;
-                this._save(); // Speichere die leeren Standardwerte
-            } else {
-                data = JSON.parse(raw) as T;
-            }
+    keys.slice(0, -1).forEach(part => {
+      if (!obj[part] || typeof obj[part] !== 'object') {
+        obj[part] = {};
+      }
+      obj = obj[part];
+    });
 
-            // Merge defaults
-            if (defaults) {
-                data = { ...defaults, ...data };
-            }
-        } catch (error) {
-            console.error('Failed to load config:', error);
-            data = defaults ? { ...defaults } as T : {} as T;
-        }
+    obj[keys[keys.length - 1]] = value;
+    this._save();
+  }
 
-        this.data = data; // Sicherstellen, dass `this.data` immer initialisiert ist
-        return data;
+  public delete<K extends keyof T>(key: K): void {
+    const keys = key.toString().split('.') as (keyof any)[];
+    let obj: any = this.data;
+
+    keys.slice(0, -1).forEach(part => {
+      if (!obj[part] || typeof obj[part] !== 'object') {
+        return;
+      }
+      obj = obj[part];
+    });
+
+    delete obj[keys[keys.length - 1]];
+    this._save();
+  }
+
+  public async openInEditor(): Promise<void> {
+    try {
+      await shell.openPath(this.filePath);
+    } catch (error) {
+      throw new Error(`Failed to open file: ${(error as Error).message}`);
     }
-
-    private _save(): void {
-        try {
-            if (!this.data || typeof this.data !== 'object') {
-                throw new Error('No data to save.');
-            }
-            const tempPath = `${this.filePath}.tmp`;
-            console.log('Saving data:', this.data); // Debugging
-            writeFileSync(tempPath, JSON.stringify(this.data, null, 2), 'utf-8');
-            renameSync(tempPath, this.filePath);
-        } catch (error) {
-            console.error('Failed to save config:', error);
-        }
-    }
-
-    public get<K extends keyof T>(key: K, defaultValue?: T[K]): T[K] {
-        const keys = key.toString().split('.') as (keyof any)[];
-        let value: any = this.data;
-
-        for (const part of keys) {
-            if (value && typeof value === 'object' && part in value) {
-                value = value[part];
-            } else {
-                value = undefined;
-                break;
-            }
-        }
-
-        return value !== undefined ? value : defaultValue;
-    }
-
-    public set<K extends keyof T>(key: K, value: T[K]): void {
-        const keys = key.toString().split('.') as (keyof any)[];
-        let obj: any = this.data;
-
-        keys.slice(0, -1).forEach(part => {
-            if (!obj[part] || typeof obj[part] !== 'object') {
-                obj[part] = {};
-            }
-            obj = obj[part];
-        });
-
-        obj[keys[keys.length - 1]] = value;
-        this._save();
-    }
-
-    public delete<K extends keyof T>(key: K): void {
-        const keys = key.toString().split('.') as (keyof any)[];
-        let obj: any = this.data;
-
-        keys.slice(0, -1).forEach(part => {
-            if (!obj[part] || typeof obj[part] !== 'object') {
-                return;
-            }
-            obj = obj[part];
-        });
-
-        delete obj[keys[keys.length - 1]];
-        this._save();
-    }
-
-    public async openInEditor(): Promise<void> {
-        try {
-            await shell.openPath(this.filePath);
-        } catch (error) {
-            throw new Error(`Failed to open file: ${(error as Error).message}`);
-        }
-    }
-
-    // Statische Methode zur Initialisierung im Renderer-Prozess
-    public static initRenderer(): void {
-        // Keine spezifische Initialisierung notwendig, da IPC-Handler bereits im Main-Prozess sind
-    }
+  }
 }
 
 export default SimpleStore;

@@ -1,18 +1,42 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import { StoreData } from '@type/store';
 
 // Typen für Events definieren
-type Events = {
-  'button-clicked': string;
-  'backend-event': string;
+type StoreEvent = {
+  'store:get': { 
+    key: keyof StoreData; // Schlüssel im Store
+    responseChannel?: string; // Kanal für die Antwort
+  };
+  'store:set': { 
+    key: keyof StoreData; // Schlüssel im Store
+    value: StoreData[keyof StoreData]; // Optionaler Wert (für set)
+    responseChannel?: string; // Kanal für die Antwort
+  };
+  'store:delete': { 
+    key: keyof StoreData; // Schlüssel im Store
+    responseChannel?: string; // Kanal für die Antwort
+  };
+  'store:open': {
+    responseChannel?: string // Nur Antwortkanal, da kein Key benötigt wird
+  };
 };
 
-// Event-Bus-Schnittstelle
-contextBridge.exposeInMainWorld('eventBus', {
-  emit: (eventName: keyof Events, data: any) => {
+type EventBusEvent = StoreEvent & {
+  'button-clicked': string;
+  'backend-event': string;
+  'get-versions': { responseChannel: string }; // Anfrage für Versionsinformationen
+  [responseChannel: string]: any; // Dynamische Antwortkanäle
+};
+
+const eventBus = {
+  emit: <K extends keyof EventBusEvent>(eventName: K, data: EventBusEvent[K]) => {
     ipcRenderer.send('event', { eventName, data }); // Renderer → Main
   },
-  on: (eventName: keyof Events, callback: (data: any) => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, { eventName: incomingEvent, data }: { eventName: keyof Events; data: any }) => {
+  on: <K extends keyof EventBusEvent>(eventName: K, callback: (data: EventBusEvent[K]) => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      { eventName: incomingEvent, data }: { eventName: K; data: EventBusEvent[K] }
+    ) => {
       if (eventName === incomingEvent) {
         callback(data); // Main → Renderer
       }
@@ -20,30 +44,76 @@ contextBridge.exposeInMainWorld('eventBus', {
     ipcRenderer.on('event', listener);
     return () => ipcRenderer.removeListener('event', listener); // Cleanup-Funktion zurückgeben
   },
-});
+};
 
-// Electron API-Schnittstelle
-contextBridge.exposeInMainWorld('electronAPI', {
-  getUserPreferences: async () => await ipcRenderer.invoke('get-user-preferences'),
-  setUserPreferences: async (preferences: { theme: string }) => await ipcRenderer.invoke('set-user-preferences', preferences),
-});
+// Versionsinformationen
+const versions = {
+  get: async (): Promise<{ node: string; chrome: string; electron: string }> => {
+    return new Promise((resolve, reject) => {
+      const responseChannel = `get-versions-response-${Date.now()}`;
 
-// Store API-Schnittstelle
-contextBridge.exposeInMainWorld('store', {
-  get: async <K extends string>(key: K, defaultValue?: any) => {
-    return await ipcRenderer.invoke('simple-store-get', key, defaultValue);
-  },
-  set: async <K extends string>(key: K, value: any) => {
-    await ipcRenderer.invoke('simple-store-set', key, value);
-  },
-  delete: async <K extends string>(key: K) => {
-    await ipcRenderer.invoke('simple-store-delete', key);
-  },
-  openInEditor: async () => await ipcRenderer.invoke('simple-store-open'),
-});
+      // Listener für die Antwort vom Main-Prozess setzen
+      eventBus.on(responseChannel as keyof EventBusEvent, (data) => {
+        if (
+          typeof data === 'object' &&
+          'node' in data &&
+          'chrome' in data &&
+          'electron' in data
+        ) {
+          resolve(data);
+        } else {
+          reject(new Error('Invalid versions format'));
+        }
+      });
 
-contextBridge.exposeInMainWorld('versions', {
-  node: () => process.versions.node,
-  chrome: () => process.versions.chrome,
-  electron: () => process.versions.electron,
+      // Anfrage an den Main-Prozess senden
+      eventBus.emit('get-versions', { responseChannel });
+    });
+  },
+};
+
+// Benutzerpräferenzen
+const userPreferences = {
+  get: async (): Promise<{ theme: string }> => {
+    return new Promise((resolve, reject) => {
+      const responseChannel = `store-get-response-${Date.now()}`;
+
+      // Listener für die Antwort vom Main-Prozess setzen
+      eventBus.on(responseChannel as keyof EventBusEvent, (data) => {
+        if (typeof data === 'object' && 'theme' in data) {
+          resolve(data);
+        } else {
+          reject(new Error('Invalid preferences format'));
+        }
+      });
+
+      // Anfrage an den Main-Prozess senden
+      eventBus.emit('store:get', { key: 'userPreferences', responseChannel });
+    });
+  },
+  set: (preferences: { theme: string }): void => {
+    const responseChannel = `store-set-response-${Date.now()}`;
+    eventBus.emit('store:set', { key: 'userPreferences', value: preferences, responseChannel });
+  },
+};
+
+// Weitere Event-Handler
+const eventHandlers = {
+  emitButtonClick: (message: string): void => {
+    eventBus.emit('button-clicked', message);
+  },
+  listenToBackendEvent: (callback: (message: string) => void): void => {
+    eventBus.on('backend-event', callback);
+  },
+  emitOpenStore: (): void => {
+    const responseChannel = `store-set-response-${Date.now()}`;
+    eventBus.emit('store:open', { responseChannel });
+  },
+};
+
+// API für Renderer bereitstellen
+contextBridge.exposeInMainWorld('api', {
+  versions,
+  userPreferences,
+  events: eventHandlers,
 });

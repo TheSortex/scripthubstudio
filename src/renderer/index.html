@@ -3,12 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <title>Electron</title>
-    <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
+    <!-- Content-Security-Policy für Sicherheit -->
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
     />
-
     <link href="./assets/main.css" type="text/css" rel="stylesheet" />
   </head>
 
@@ -20,22 +19,33 @@
         Build an Electron app with
         <span class="ts">TypeScript</span>
       </div>
-      <p class="tip">Please try pressing <code>F12</code> to open the devTool</p>
+      <p class="tip">Press <code>F12</code> to open the Developer Tools</p>
+
       <div class="actions">
-        <div class="action">
-          <a href="https://electron-vite.org/" target="_blank" rel="noreferrer">Documentation</a>
-        </div>
-        <div class="action">
-          <a id="ipcHandler" target="_blank" rel="noreferrer">Send IPC</a>
-          <a id="eventBusBtn" target="_blank" rel="noreferrer">Send Event</a>
-        </div>
+        <h3>Actions</h3>
+        <button id="ipcHandler">Send IPC Event</button>
+        <button id="openStore">Open Store in Editor</button>
+        <button id="updatePreferences">Update Preferences</button>
       </div>
 
-      <ul class="versions">
-        <li class="electron-version"></li>
-        <li class="chrome-version"></li>
-        <li class="node-version"></li>
-      </ul>
+      <div class="versions">
+        <h3>Electron Versions</h3>
+        <ul>
+          <li class="electron-version">Electron: Loading...</li>
+          <li class="chrome-version">Chrome: Loading...</li>
+          <li class="node-version">Node.js: Loading...</li>
+        </ul>
+      </div>
+
+      <div class="backend-events">
+        <h3>Backend Events</h3>
+        <p class="backend-message">No messages yet...</p>
+      </div>
+
+      <div class="user-preferences">
+        <h3>User Preferences</h3>
+        <p class="preferences">Loading...</p>
+      </div>
     </div>
 
     <script type="module" src="./src/renderer.ts"></script>
